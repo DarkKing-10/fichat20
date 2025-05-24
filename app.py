@@ -44,6 +44,20 @@ def calcular_bonus_pericia(atributo, treinada, nivel):
         bonus += (nivel // 2)+2  # Bônus de treinamento é metade do nível
     return bonus
 
+# Função para atualizar o nível da classe
+def atualizar_nivel_classe(index):
+    # Preservar o estado atual da ficha
+    ficha_atual = st.session_state.ficha.copy()
+    
+    # Atualizar o nível da classe
+    ficha_atual["classes"][index]["nivel"] = st.session_state[f"classe_nivel_{index}"]
+    
+    # Recalcular o nível total
+    ficha_atual["nivel"] = sum(classe["nivel"] for classe in ficha_atual["classes"])
+    
+    # Atualizar o estado da sessão com a ficha completa
+    st.session_state.ficha = ficha_atual
+
 # Função para calcular defesa
 def calcular_defesa(atributos, bonus_equipamento=0, usar_atributo=True, atributo="destreza", bonus_reflexo=0):
     defesa = 10
@@ -329,8 +343,16 @@ with col2:
     # Informações básicas
     st.subheader("Informações Básicas")
     st.session_state.ficha["nome"] = st.text_input("Nome", st.session_state.ficha["nome"], on_change=lambda: None)
-    st.session_state.ficha["nivel"] = st.number_input("Nível Total", 1, 20, st.session_state.ficha["nivel"], on_change=lambda: None)
+    
+    # Calcular nível total baseado nas classes
+    nivel_total = sum(classe["nivel"] for classe in st.session_state.ficha["classes"])
+    st.session_state.ficha["nivel"] = nivel_total
+    
+    # Exibir nível total como métrica (somente leitura)
+    st.metric("Nível Total", nivel_total)
+    
     st.session_state.ficha["raca"] = st.text_input("Raça", st.session_state.ficha["raca"], on_change=lambda: None)
+    st.session_state.ficha["origem"] = st.text_input("Origem", st.session_state.ficha.get("origem", ""), on_change=lambda: None)
     
     # Sistema de Multiclasse
     st.subheader("Classes")
@@ -345,11 +367,20 @@ with col2:
         with col_classe1:
             classe["nome"] = st.text_input(f"Nome da Classe {i+1}", classe["nome"], key=f"classe_nome_{i}", on_change=lambda: None)
         with col_classe2:
-            classe["nivel"] = st.number_input("Nível", 1, 20, classe["nivel"], key=f"classe_nivel_{i}", on_change=lambda: None)
+            st.number_input(
+                "Nível",
+                1, 20,
+                classe["nivel"],
+                key=f"classe_nivel_{i}",
+                on_change=atualizar_nivel_classe,
+                args=(i,)
+            )
         with col_classe3:
             if len(st.session_state.ficha["classes"]) > 1:
                 if st.button("Remover", key=f"remover_classe_{i}"):
                     st.session_state.ficha["classes"].pop(i)
+                    # Recalcular nível total após remover classe
+                    st.session_state.ficha["nivel"] = sum(classe["nivel"] for classe in st.session_state.ficha["classes"])
                     st.rerun()
     
     st.session_state.ficha["divindade"] = st.text_input("Divindade", st.session_state.ficha["divindade"], on_change=lambda: None)
@@ -537,20 +568,62 @@ pericias_colunas = [
 
 # Função para atualizar o estado da perícia quando treinada é alterada
 def atualizar_pericia_treinada(pericia):
-    st.session_state.ficha["pericias"][pericia]["treinada"] = st.session_state[f"pericia_{pericia}"]
-    st.rerun()
+    # Preservar o estado atual da ficha
+    ficha_atual = st.session_state.ficha.copy()
+    
+    # Atualizar apenas o campo treinada da perícia específica
+    ficha_atual["pericias"][pericia]["treinada"] = st.session_state[f"pericia_{pericia}"]
+    
+    # Atualizar o bônus da perícia
+    atributo = ficha_atual["atributos"][ficha_atual["pericias"][pericia]["atributo"]]
+    treinada = ficha_atual["pericias"][pericia]["treinada"]
+    bonus = calcular_bonus_pericia(atributo, treinada, ficha_atual["nivel"])
+    ficha_atual["pericias"][pericia]["bonus"] = bonus + ficha_atual["pericias"][pericia].get("outros_bonus", 0)
+    
+    # Atualizar o estado da sessão com a ficha completa
+    st.session_state.ficha = ficha_atual
+
+# Função para atualizar o atributo da perícia
+def atualizar_atributo_pericia(pericia):
+    # Preservar o estado atual da ficha
+    ficha_atual = st.session_state.ficha.copy()
+    
+    # Atualizar o atributo da perícia
+    ficha_atual["pericias"][pericia]["atributo"] = st.session_state[f"atributo_{pericia}"]
+    
+    # Recalcular o bônus
+    atributo = ficha_atual["atributos"][ficha_atual["pericias"][pericia]["atributo"]]
+    treinada = ficha_atual["pericias"][pericia]["treinada"]
+    bonus = calcular_bonus_pericia(atributo, treinada, ficha_atual["nivel"])
+    ficha_atual["pericias"][pericia]["bonus"] = bonus + ficha_atual["pericias"][pericia].get("outros_bonus", 0)
+    
+    # Atualizar o estado da sessão com a ficha completa
+    st.session_state.ficha = ficha_atual
+
+# Função para atualizar outros bônus da perícia
+def atualizar_outros_bonus_pericia(pericia):
+    # Preservar o estado atual da ficha
+    ficha_atual = st.session_state.ficha.copy()
+    
+    # Atualizar outros bônus
+    ficha_atual["pericias"][pericia]["outros_bonus"] = st.session_state[f"outros_bonus_{pericia}"]
+    
+    # Recalcular o bônus total
+    atributo = ficha_atual["atributos"][ficha_atual["pericias"][pericia]["atributo"]]
+    treinada = ficha_atual["pericias"][pericia]["treinada"]
+    bonus = calcular_bonus_pericia(atributo, treinada, ficha_atual["nivel"])
+    ficha_atual["pericias"][pericia]["bonus"] = bonus + ficha_atual["pericias"][pericia]["outros_bonus"]
+    
+    # Atualizar o estado da sessão com a ficha completa
+    st.session_state.ficha = ficha_atual
 
 # Exibir perícias em cada coluna
 for col, pericias_col in zip(columns, pericias_colunas):
     with col:
         for pericia, info in pericias_col:
-            # Calcular bônus atual
-            atributo = st.session_state.ficha["atributos"][st.session_state.ficha["pericias"][pericia]["atributo"]]
-            treinada = st.session_state.ficha["pericias"][pericia]["treinada"]
-            bonus = calcular_bonus_pericia(atributo, treinada, st.session_state.ficha["nivel"])
-            
-            # Atualizar o bônus na ficha
-            st.session_state.ficha["pericias"][pericia]["bonus"] = bonus
+            # Garantir que outros_bonus existe
+            if "outros_bonus" not in st.session_state.ficha["pericias"][pericia]:
+                st.session_state.ficha["pericias"][pericia]["outros_bonus"] = 0
             
             # Criar container para a perícia
             st.markdown(f"""
@@ -560,14 +633,14 @@ for col, pericias_col in zip(columns, pericias_colunas):
                             <div class="pericia-nome">{pericia}</div>
                             <div class="pericia-atributo">Atributo: {st.session_state.ficha["pericias"][pericia]["atributo"].capitalize()}</div>
                         </div>
-                        <div class="pericia-bonus">{bonus:+d}</div>
+                        <div class="pericia-bonus">{st.session_state.ficha["pericias"][pericia]["bonus"]:+d}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
             
             # Controles da perícia
             st.markdown('<div class="pericia-controls">', unsafe_allow_html=True)
-            col_controls1, col_controls2 = st.columns([1, 1])
+            col_controls1, col_controls2, col_controls3 = st.columns([1, 1, 1])
             with col_controls1:
                 st.checkbox(
                     "Treinada",
@@ -577,12 +650,24 @@ for col, pericias_col in zip(columns, pericias_colunas):
                     args=(pericia,)
                 )
             with col_controls2:
-                st.session_state.ficha["pericias"][pericia]["atributo"] = st.selectbox(
+                st.selectbox(
                     "Atributo",
                     options=ATRIBUTOS,
                     index=ATRIBUTOS.index(st.session_state.ficha["pericias"][pericia]["atributo"]),
                     key=f"atributo_{pericia}",
-                    label_visibility="collapsed"
+                    label_visibility="collapsed",
+                    on_change=atualizar_atributo_pericia,
+                    args=(pericia,)
+                )
+            with col_controls3:
+                st.number_input(
+                    "Outros Bônus",
+                    -10, 10,
+                    st.session_state.ficha["pericias"][pericia]["outros_bonus"],
+                    key=f"outros_bonus_{pericia}",
+                    label_visibility="collapsed",
+                    on_change=atualizar_outros_bonus_pericia,
+                    args=(pericia,)
                 )
             st.markdown('</div>', unsafe_allow_html=True)
 
