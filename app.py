@@ -14,16 +14,24 @@ st.set_page_config(
 
 # Função para converter imagem para base64
 def image_to_base64(image):
-    buffered = io.BytesIO()
-    image.save(buffered, format="PNG")
-    return base64.b64encode(buffered.getvalue()).decode()
+    try:
+        buffered = io.BytesIO()
+        image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode()
+    except Exception as e:
+        st.error(f"Erro ao converter imagem: {str(e)}")
+        return None
 
 # Função para converter base64 para imagem
 def base64_to_image(base64_string):
-    if base64_string:
-        image_data = base64.b64decode(base64_string)
-        return Image.open(io.BytesIO(image_data))
-    return None
+    try:
+        if base64_string:
+            image_data = base64.b64decode(base64_string)
+            return Image.open(io.BytesIO(image_data))
+        return None
+    except Exception as e:
+        st.error(f"Erro ao converter base64 para imagem: {str(e)}")
+        return None
 
 # Função para calcular modificador
 def calcular_modificador(valor):
@@ -33,8 +41,40 @@ def calcular_modificador(valor):
 def calcular_bonus_pericia(atributo, treinada, nivel):
     bonus = calcular_modificador(atributo)
     if treinada:
-        bonus += nivel // 2
+        bonus += (nivel // 2)+2  # Bônus de treinamento é metade do nível
     return bonus
+
+# Função para calcular defesa
+def calcular_defesa(atributos, bonus_equipamento=0, usar_atributo=True, atributo="destreza", bonus_reflexo=0):
+    defesa = 10
+    if usar_atributo:
+        defesa += calcular_modificador(atributos[atributo])
+    defesa += bonus_equipamento
+    defesa += bonus_reflexo
+    return defesa
+
+# Função para calcular deslocamento
+def calcular_deslocamento(atributos, armadura=None, raca=None):
+    deslocamento = 9  # Base padrão
+    if raca:
+        # Ajuste baseado na raça (exemplo)
+        if raca.lower() in ["humano", "elfo", "meio-elfo"]:
+            deslocamento = 9
+        elif raca.lower() in ["anão", "meio-orc"]:
+            deslocamento = 6
+        elif raca.lower() == "halfling":
+            deslocamento = 6
+    
+    # Ajuste por armadura
+    if armadura:
+        if armadura.get("tipo", "").lower() == "pesada":
+            deslocamento = max(6, deslocamento - 3)
+        elif armadura.get("tipo", "").lower() == "média":
+            deslocamento = max(6, deslocamento - 2)
+        elif armadura.get("tipo", "").lower() == "leve":
+            deslocamento = max(6, deslocamento - 1)
+    
+    return deslocamento
 
 # Lista de perícias do T20
 PERICIAS = {
@@ -204,6 +244,7 @@ if 'ficha' not in st.session_state:
         "pv": 0,
         "pm": 0,
         "defesa": 10,
+        "deslocamento": 9,
         "pericias": {pericia: {"treinada": False, "bonus": 0, "atributo": info["atributo_padrao"]} for pericia, info in PERICIAS.items()},
         "imagem": None,
         "inventario": {
@@ -240,14 +281,26 @@ col1, col2 = st.columns([1, 2])
 with col1:
     # Exibir imagem existente
     if st.session_state.ficha.get("imagem"):
-        st.image(base64_to_image(st.session_state.ficha["imagem"]), caption="Imagem do Personagem", use_column_width=True)
+        try:
+            imagem = base64_to_image(st.session_state.ficha["imagem"])
+            if imagem:
+                st.image(imagem, caption="Imagem do Personagem", width=300)
+        except Exception as e:
+            st.error(f"Erro ao exibir imagem: {str(e)}")
+            st.session_state.ficha["imagem"] = None
     
     # Upload de nova imagem
     uploaded_file = st.file_uploader("Escolha uma imagem para o personagem", type=['png', 'jpg', 'jpeg'])
     if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        st.session_state.ficha["imagem"] = image_to_base64(image)
-        st.image(image, caption="Imagem do Personagem", use_column_width=True)
+        try:
+            image = Image.open(uploaded_file)
+            # Converter para RGB se necessário
+            if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+                image = image.convert('RGB')
+            st.session_state.ficha["imagem"] = image_to_base64(image)
+            st.image(image, caption="Imagem do Personagem", width=300)
+        except Exception as e:
+            st.error(f"Erro ao processar imagem: {str(e)}")
 
     # Botão para carregar ficha
     if st.button("Carregar Ficha"):
@@ -257,13 +310,20 @@ with col1:
     if st.session_state.show_file_uploader:
         uploaded_json = st.file_uploader("Selecione o arquivo da ficha", type=['json'], key="json_uploader")
         if uploaded_json is not None:
-            json_string = uploaded_json.getvalue().decode()
-            nova_ficha = carregar_ficha(json_string)
-            if nova_ficha:
-                # Atualizar o estado da sessão com a nova ficha
-                st.session_state.ficha.update(nova_ficha)
-                st.success("Ficha carregada com sucesso!")
-                st.session_state.show_file_uploader = False
+            try:
+                json_string = uploaded_json.getvalue().decode()
+                nova_ficha = carregar_ficha(json_string)
+                if nova_ficha:
+                    # Preservar a imagem se existir
+                    imagem_atual = st.session_state.ficha.get("imagem")
+                    st.session_state.ficha = nova_ficha
+                    if imagem_atual:
+                        st.session_state.ficha["imagem"] = imagem_atual
+                    st.success("Ficha carregada com sucesso!")
+                    st.session_state.show_file_uploader = False
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao carregar ficha: {str(e)}")
 
 with col2:
     # Informações básicas
@@ -339,6 +399,50 @@ with col2:
         st.session_state.ficha["atributos"]["carisma"] = st.number_input("Carisma", 1, 20, st.session_state.ficha["atributos"]["carisma"], on_change=lambda: None)
     with col_car2:
         st.metric("Mod", calcular_modificador(st.session_state.ficha["atributos"]["carisma"]))
+
+    # Defesa e Deslocamento
+    st.subheader("Defesa e Deslocamento")
+    col_def1, col_def2 = st.columns(2)
+
+    with col_def1:
+        st.write("Defesa")
+        # Campos para cálculo de defesa
+        usar_atributo = st.checkbox("Usar modificador de atributo", value=True, key="usar_atributo_defesa")
+        if usar_atributo:
+            atributo_defesa = st.selectbox(
+                "Atributo para Defesa",
+                options=ATRIBUTOS,
+                index=ATRIBUTOS.index("destreza"),
+                key="atributo_defesa"
+            )
+        
+        bonus_equipamento = st.number_input("Bônus de Equipamento", -10, 20, 0, key="bonus_equipamento_defesa")
+        bonus_reflexo = st.number_input("Bônus de Reflexos", -10, 20, 0, key="bonus_reflexo_defesa")
+        
+        # Calcular defesa
+        defesa = calcular_defesa(
+            st.session_state.ficha["atributos"],
+            bonus_equipamento,
+            usar_atributo,
+            atributo_defesa if usar_atributo else "destreza",
+            bonus_reflexo
+        )
+        st.metric("Defesa Total", defesa)
+
+    with col_def2:
+        st.write("Deslocamento")
+        # Campo editável para deslocamento
+        deslocamento_atual = st.session_state.ficha.get("deslocamento", 9)  # Valor padrão se não existir
+        novo_deslocamento = st.number_input(
+            "Deslocamento (metros)",
+            min_value=0,
+            max_value=30,
+            value=deslocamento_atual,
+            step=1,
+            key="deslocamento_input"
+        )
+        st.session_state.ficha["deslocamento"] = novo_deslocamento
+        st.metric("Deslocamento", f"{novo_deslocamento}m")
 
 # Perícias
 st.subheader("Perícias")
@@ -431,6 +535,11 @@ pericias_colunas = [
     pericias_lista[i:i + pericias_por_coluna] for i in range(0, len(pericias_lista), pericias_por_coluna)
 ]
 
+# Função para atualizar o estado da perícia quando treinada é alterada
+def atualizar_pericia_treinada(pericia):
+    st.session_state.ficha["pericias"][pericia]["treinada"] = st.session_state[f"pericia_{pericia}"]
+    st.rerun()
+
 # Exibir perícias em cada coluna
 for col, pericias_col in zip(columns, pericias_colunas):
     with col:
@@ -451,7 +560,7 @@ for col, pericias_col in zip(columns, pericias_colunas):
                             <div class="pericia-nome">{pericia}</div>
                             <div class="pericia-atributo">Atributo: {st.session_state.ficha["pericias"][pericia]["atributo"].capitalize()}</div>
                         </div>
-                        <div class="pericia-bonus">+{bonus}</div>
+                        <div class="pericia-bonus">{bonus:+d}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -460,10 +569,12 @@ for col, pericias_col in zip(columns, pericias_colunas):
             st.markdown('<div class="pericia-controls">', unsafe_allow_html=True)
             col_controls1, col_controls2 = st.columns([1, 1])
             with col_controls1:
-                st.session_state.ficha["pericias"][pericia]["treinada"] = st.checkbox(
+                st.checkbox(
                     "Treinada",
                     value=st.session_state.ficha["pericias"][pericia]["treinada"],
-                    key=f"pericia_{pericia}"
+                    key=f"pericia_{pericia}",
+                    on_change=atualizar_pericia_treinada,
+                    args=(pericia,)
                 )
             with col_controls2:
                 st.session_state.ficha["pericias"][pericia]["atributo"] = st.selectbox(
@@ -815,9 +926,10 @@ for i, habilidade in enumerate(st.session_state.ficha["habilidades"]):
 # Botão para salvar ficha
 if st.button("Salvar Ficha"):
     ficha_json = salvar_ficha(st.session_state.ficha)
+    nome_arquivo = f"{st.session_state.ficha['nome']}.json" if st.session_state.ficha['nome'] else "ficha_t20.json"
     st.download_button(
         label="Baixar Ficha",
         data=ficha_json,
-        file_name="ficha_t20.json",
+        file_name=nome_arquivo,
         mime="application/json"
     )
