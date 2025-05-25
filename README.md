@@ -3,64 +3,63 @@
 
 [English version below](#english-version)
 
-Uma aplicação web desenvolvida com Streamlit para criar e gerenciar fichas de personagem do sistema Tormenta 20.
+Uma aplicação web interativa para criar e gerenciar fichas de personagem do sistema Tormenta 20, desenvolvida com Streamlit.
 
 ## Funcionalidades
 
 ### Informações Básicas
-- Nome, nível e raça do personagem
+- Nome, nível, raça, origem e divindade
 - Sistema de multiclasse
-- Divindade e tendência
-- Upload e exibição de imagem do personagem
+- Upload de imagem do personagem
+- Tendência
 
 ### Atributos
-- Força, Destreza, Constituição
-- Inteligência, Sabedoria, Carisma
+- Força, Destreza, Constituição, Inteligência, Sabedoria e Carisma
 - Cálculo automático de modificadores
+- Sem limite superior para valores
+
+### Defesa e Deslocamento
+- Cálculo automático de defesa
+- Opção de usar diferentes atributos para defesa
+- Bônus de equipamento e reflexos
+- Deslocamento personalizável
 
 ### Perícias
 - Lista completa de perícias do T20
-- Opção de marcar perícias treinadas
-- Escolha do atributo base para cada perícia
-- Cálculo automático de bônus
+- Sistema de treinamento
+- Seleção de atributo base
+- Bônus e penalidades personalizáveis
+- Sistema de ofícios adicionais
 
 ### Recursos
 - Vida, Mana e Prana
 - Barras de progresso visuais
 - Recursos adicionais personalizáveis
-- Cores personalizáveis para cada recurso
+- Cores personalizáveis para recursos
 
 ### Inventário
 - Sistema de dinheiro (T$, PP, PO, PE, PC)
-- Controle de carga
-- Itens com propriedades detalhadas:
+- Cálculo automático de carga
+- Sistema de encumbrance do T20
+- Gerenciamento de itens com:
   - Nome, tipo, quantidade, peso e valor
-  - Descrições e propriedades
-  - Campos específicos para armas
-  - Campos específicos para itens mágicos
-  - Bônus em atributos
-  - Bônus em perícias
-  - Outros bônus (ataque, dano, defesa, iniciativa)
+  - Descrições detalhadas
+  - Propriedades específicas por tipo de item
+  - Bônus em atributos e perícias
 
 ### Magias
-- Organização por tipo (Arcana/Divina)
-- Organização por nível (1º a 5º)
-- Campos para:
-  - Nome e escola
-  - Execução, alcance e alvo
-  - Duração e resistência
-  - Descrição detalhada
+- Sistema flexível de magias
+- Suporte para magias arcanas e divinas
+- Níveis de magia ilimitados
+- Organização por tipo e nível
+- Busca por nome ou descrição
+- Detalhes completos de cada magia
 
 ### Poderes e Habilidades
-- Nome e tipo
-- Custo e requisitos
-- Descrição detalhada
-
-### Salvamento e Carregamento
-- Exportação da ficha em formato JSON
-- Importação de fichas salvas
-- Preservação de todas as informações
-- Suporte para imagem do personagem
+- Gerenciamento de poderes
+- Gerenciamento de habilidades
+- Busca por nome ou descrição
+- Seções expansíveis
 
 ## Requisitos
 
@@ -87,29 +86,37 @@ streamlit run app.py
 
 ## Uso
 
-1. Acesse a aplicação no navegador (geralmente em http://localhost:8501)
+1. Abra a aplicação no navegador
 2. Preencha as informações do personagem
-3. Use o botão "Salvar Ficha" para exportar em JSON
-4. Use o botão "Carregar Ficha" para importar uma ficha salva
+3. Use o botão "Salvar Ficha" para baixar a ficha em formato JSON
+4. Use o botão "Carregar Ficha" para importar uma ficha existente
 
-## Recursos Técnicos
+## Recursos Adicionais
 
+- Compatibilidade com fichas de versões anteriores
+- Sistema de busca em magias, poderes e habilidades
 - Interface responsiva
-- Atualização automática de cálculos
-- Persistência de dados via JSON
-- Suporte a imagens em base64
-- Sistema de estados para preservar alterações
+- Salvamento automático do estado
+- Suporte a imagens de personagem
 
-## Contribuição
+## Contribuindo
 
-Contribuições são bem-vindas! Sinta-se à vontade para:
-1. Reportar bugs
-2. Sugerir novas funcionalidades
-3. Enviar pull requests
+Contribuições são bem-vindas! Por favor, sinta-se à vontade para:
+1. Fazer um fork do projeto
+2. Criar uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abrir um Pull Request
 
 ## Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
+Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+
+## Contato
+
+[Seu Nome] - [Seu Email]
+
+Link do Projeto: [https://github.com/seu-usuario/seu-repositorio](https://github.com/seu-usuario/seu-repositorio)
 
 ---
 

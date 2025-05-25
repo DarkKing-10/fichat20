@@ -90,6 +90,52 @@ def calcular_deslocamento(atributos, armadura=None, raca=None):
     
     return deslocamento
 
+# Função para calcular carga máxima
+def calcular_carga_maxima(forca):
+    return forca * 3
+
+# Função para calcular penalidade de carga
+def calcular_penalidade_carga(carga_atual, carga_maxima):
+    if carga_atual <= carga_maxima * 0.5:
+        return 0, "Sem penalidade"
+    elif carga_atual <= carga_maxima:
+        return -2, "Sobrecarregado (-2 em testes de Força e Destreza)"
+    elif carga_atual <= carga_maxima * 1.5:
+        return -4, "Sobrecarregado (-4 em testes de Força e Destreza)"
+    elif carga_atual <= carga_maxima * 2:
+        return -6, "Sobrecarregado (-6 em testes de Força e Destreza)"
+    else:
+        return -8, "Sobrecarregado (-8 em testes de Força e Destreza)"
+
+# Função para atualizar carga total
+def atualizar_carga_total():
+    # Preservar o estado atual da ficha
+    ficha_atual = st.session_state.ficha.copy()
+    
+    # Calcular carga total dos itens
+    carga_total = sum(item["peso"] * item["quantidade"] for item in ficha_atual["inventario"]["itens"])
+    
+    # Atualizar carga atual
+    ficha_atual["inventario"]["carga"]["atual"] = carga_total
+    
+    # Atualizar o estado da sessão com a ficha completa
+    st.session_state.ficha = ficha_atual
+
+# Função para atualizar item
+def atualizar_item(index):
+    # Preservar o estado atual da ficha
+    ficha_atual = st.session_state.ficha.copy()
+    
+    # Atualizar o item
+    ficha_atual["inventario"]["itens"][index] = st.session_state[f"item_{index}"]
+    
+    # Recalcular carga total
+    carga_total = sum(item["peso"] * item["quantidade"] for item in ficha_atual["inventario"]["itens"])
+    ficha_atual["inventario"]["carga"]["atual"] = carga_total
+    
+    # Atualizar o estado da sessão com a ficha completa
+    st.session_state.ficha = ficha_atual
+
 # Lista de perícias do T20
 PERICIAS = {
     "Acrobacia": {"atributo_padrao": "destreza", "penalidade_armadura": True},
@@ -106,8 +152,8 @@ PERICIAS = {
     "Guerra": {"atributo_padrao": "inteligencia", "penalidade_armadura": False},
     "Iniciativa": {"atributo_padrao": "destreza", "penalidade_armadura": False},
     "Intimidação": {"atributo_padrao": "carisma", "penalidade_armadura": False},
-    "Intuição": {"atributo_padrao": "sabedoria", "penalidade_armadura": False},
     "Investigação": {"atributo_padrao": "inteligencia", "penalidade_armadura": False},
+    "Intuição": {"atributo_padrao": "sabedoria", "penalidade_armadura": False},
     "Jogatina": {"atributo_padrao": "carisma", "penalidade_armadura": False},
     "Ladinagem": {"atributo_padrao": "destreza", "penalidade_armadura": True},
     "Luta": {"atributo_padrao": "forca", "penalidade_armadura": True},
@@ -128,8 +174,8 @@ ATRIBUTOS = ["forca", "destreza", "constituicao", "inteligencia", "sabedoria", "
 
 # Estruturas de dados para T20
 MAGIAS = {
-    "Arcana": ["1º", "2º", "3º", "4º", "5º"],
-    "Divina": ["1º", "2º", "3º", "4º", "5º"]
+    "Arcana": [],
+    "Divina": []
 }
 
 TIPOS_ITEM = [
@@ -156,8 +202,8 @@ def carregar_ficha(json_string):
             }
         if "magias" not in ficha:
             ficha["magias"] = {
-                "arcana": {nivel: [] for nivel in MAGIAS["Arcana"]},
-                "divina": {nivel: [] for nivel in MAGIAS["Divina"]}
+                "arcana": [],
+                "divina": []
             }
         if "poderes" not in ficha:
             ficha["poderes"] = []
@@ -184,6 +230,10 @@ def carregar_ficha(json_string):
                 "sabedoria": 10,
                 "carisma": 10
             }
+        if "oficios" not in ficha:
+            ficha["oficios"] = []
+        if "origem" not in ficha:
+            ficha["origem"] = ""
         return ficha
     except:
         st.error("Erro ao carregar a ficha. Verifique se o JSON é válido.")
@@ -232,6 +282,28 @@ def criar_barra_recursos(nome, valor_atual, valor_maximo, cor):
         </div>
     """, unsafe_allow_html=True)
 
+# Função para adicionar novo ofício
+def adicionar_oficio():
+    # Preservar o estado atual da ficha
+    ficha_atual = st.session_state.ficha.copy()
+    
+    # Adicionar novo ofício
+    novo_oficio = st.session_state["novo_oficio"]
+    if novo_oficio and novo_oficio not in ficha_atual["oficios"]:
+        ficha_atual["oficios"].append(novo_oficio)
+        # Inicializar a perícia para o novo ofício
+        ficha_atual["pericias"][f"Ofício ({novo_oficio})"] = {
+            "treinada": False,
+            "bonus": 0,
+            "atributo": "inteligencia",
+            "outros_bonus": 0,
+            "penalidade": 0
+        }
+        st.session_state["novo_oficio"] = ""  # Limpar o campo
+    
+    # Atualizar o estado da sessão com a ficha completa
+    st.session_state.ficha = ficha_atual
+
 # Inicialização do estado da sessão
 if 'ficha' not in st.session_state:
     st.session_state.ficha = {
@@ -241,6 +313,7 @@ if 'ficha' not in st.session_state:
         "classes": [{"nome": "", "nivel": 1}],
         "divindade": "",
         "tendencia": "",
+        "origem": "",
         "atributos": {
             "forca": 10,
             "destreza": 10,
@@ -276,12 +349,16 @@ if 'ficha' not in st.session_state:
             }
         },
         "magias": {
-            "arcana": {nivel: [] for nivel in MAGIAS["Arcana"]},
-            "divina": {nivel: [] for nivel in MAGIAS["Divina"]}
+            "arcana": [],
+            "divina": []
         },
         "poderes": [],
-        "habilidades": []
+        "habilidades": [],
+        "oficios": []  # Lista de ofícios adicionais
     }
+
+if 'novo_oficio' not in st.session_state:
+    st.session_state.novo_oficio = ""
 
 if 'show_file_uploader' not in st.session_state:
     st.session_state.show_file_uploader = False
@@ -392,42 +469,42 @@ with col2:
     # Força
     col_forca1, col_forca2 = st.columns([3, 1])
     with col_forca1:
-        st.session_state.ficha["atributos"]["forca"] = st.number_input("Força", 1, 20, st.session_state.ficha["atributos"]["forca"], on_change=lambda: None)
+        st.session_state.ficha["atributos"]["forca"] = st.number_input("Força", 1, None, st.session_state.ficha["atributos"]["forca"], on_change=lambda: None)
     with col_forca2:
         st.metric("Mod", calcular_modificador(st.session_state.ficha["atributos"]["forca"]))
     
     # Destreza
     col_des1, col_des2 = st.columns([3, 1])
     with col_des1:
-        st.session_state.ficha["atributos"]["destreza"] = st.number_input("Destreza", 1, 20, st.session_state.ficha["atributos"]["destreza"], on_change=lambda: None)
+        st.session_state.ficha["atributos"]["destreza"] = st.number_input("Destreza", 1, None, st.session_state.ficha["atributos"]["destreza"], on_change=lambda: None)
     with col_des2:
         st.metric("Mod", calcular_modificador(st.session_state.ficha["atributos"]["destreza"]))
     
     # Constituição
     col_con1, col_con2 = st.columns([3, 1])
     with col_con1:
-        st.session_state.ficha["atributos"]["constituicao"] = st.number_input("Constituição", 1, 20, st.session_state.ficha["atributos"]["constituicao"], on_change=lambda: None)
+        st.session_state.ficha["atributos"]["constituicao"] = st.number_input("Constituição", 1, None, st.session_state.ficha["atributos"]["constituicao"], on_change=lambda: None)
     with col_con2:
         st.metric("Mod", calcular_modificador(st.session_state.ficha["atributos"]["constituicao"]))
     
     # Inteligência
     col_int1, col_int2 = st.columns([3, 1])
     with col_int1:
-        st.session_state.ficha["atributos"]["inteligencia"] = st.number_input("Inteligência", 1, 20, st.session_state.ficha["atributos"]["inteligencia"], on_change=lambda: None)
+        st.session_state.ficha["atributos"]["inteligencia"] = st.number_input("Inteligência", 1, None, st.session_state.ficha["atributos"]["inteligencia"], on_change=lambda: None)
     with col_int2:
         st.metric("Mod", calcular_modificador(st.session_state.ficha["atributos"]["inteligencia"]))
     
     # Sabedoria
     col_sab1, col_sab2 = st.columns([3, 1])
     with col_sab1:
-        st.session_state.ficha["atributos"]["sabedoria"] = st.number_input("Sabedoria", 1, 20, st.session_state.ficha["atributos"]["sabedoria"], on_change=lambda: None)
+        st.session_state.ficha["atributos"]["sabedoria"] = st.number_input("Sabedoria", 1, None, st.session_state.ficha["atributos"]["sabedoria"], on_change=lambda: None)
     with col_sab2:
         st.metric("Mod", calcular_modificador(st.session_state.ficha["atributos"]["sabedoria"]))
     
     # Carisma
     col_car1, col_car2 = st.columns([3, 1])
     with col_car1:
-        st.session_state.ficha["atributos"]["carisma"] = st.number_input("Carisma", 1, 20, st.session_state.ficha["atributos"]["carisma"], on_change=lambda: None)
+        st.session_state.ficha["atributos"]["carisma"] = st.number_input("Carisma", 1, None, st.session_state.ficha["atributos"]["carisma"], on_change=lambda: None)
     with col_car2:
         st.metric("Mod", calcular_modificador(st.session_state.ficha["atributos"]["carisma"]))
 
@@ -559,12 +636,16 @@ def get_column_count():
 num_columns = get_column_count()
 columns = st.columns(num_columns)
 
-# Dividir as perícias em colunas
+# Dividir as perícias em colunas de forma mais eficiente
 pericias_lista = list(PERICIAS.items())
-pericias_por_coluna = len(pericias_lista) // num_columns
-pericias_colunas = [
-    pericias_lista[i:i + pericias_por_coluna] for i in range(0, len(pericias_lista), pericias_por_coluna)
-]
+pericias_por_coluna = (len(pericias_lista) + num_columns - 1) // num_columns  # Arredonda para cima
+pericias_colunas = []
+for i in range(0, len(pericias_lista), pericias_por_coluna):
+    pericias_colunas.append(pericias_lista[i:i + pericias_por_coluna])
+
+# Garantir que temos o número correto de colunas
+while len(pericias_colunas) < num_columns:
+    pericias_colunas.append([])
 
 # Função para atualizar o estado da perícia quando treinada é alterada
 def atualizar_pericia_treinada(pericia):
@@ -617,13 +698,134 @@ def atualizar_outros_bonus_pericia(pericia):
     # Atualizar o estado da sessão com a ficha completa
     st.session_state.ficha = ficha_atual
 
+# Função para atualizar penalidade da perícia
+def atualizar_penalidade_pericia(pericia):
+    # Preservar o estado atual da ficha
+    ficha_atual = st.session_state.ficha.copy()
+    
+    # Atualizar penalidade
+    ficha_atual["pericias"][pericia]["penalidade"] = st.session_state[f"penalidade_{pericia}"]
+    
+    # Recalcular o bônus total
+    atributo = ficha_atual["atributos"][ficha_atual["pericias"][pericia]["atributo"]]
+    treinada = ficha_atual["pericias"][pericia]["treinada"]
+    bonus = calcular_bonus_pericia(atributo, treinada, ficha_atual["nivel"])
+    ficha_atual["pericias"][pericia]["bonus"] = bonus + ficha_atual["pericias"][pericia]["outros_bonus"] + ficha_atual["pericias"][pericia]["penalidade"]
+    
+    # Atualizar o estado da sessão com a ficha completa
+    st.session_state.ficha = ficha_atual
+
 # Exibir perícias em cada coluna
 for col, pericias_col in zip(columns, pericias_colunas):
     with col:
         for pericia, info in pericias_col:
-            # Garantir que outros_bonus existe
+            # Tratamento especial para Ofício
+            if pericia == "Ofício":
+                # Exibir ofícios existentes
+                for oficio in st.session_state.ficha["oficios"]:
+                    pericia_oficio = f"Ofício ({oficio})"
+                    if pericia_oficio not in st.session_state.ficha["pericias"]:
+                        st.session_state.ficha["pericias"][pericia_oficio] = {
+                            "treinada": False,
+                            "bonus": 0,
+                            "atributo": "inteligencia",
+                            "outros_bonus": 0,
+                            "penalidade": 0
+                        }
+                    
+                    # Calcular bônus total incluindo penalidades
+                    atributo = st.session_state.ficha["atributos"][st.session_state.ficha["pericias"][pericia_oficio]["atributo"]]
+                    treinada = st.session_state.ficha["pericias"][pericia_oficio]["treinada"]
+                    bonus = calcular_bonus_pericia(atributo, treinada, st.session_state.ficha["nivel"])
+                    bonus_total = bonus + st.session_state.ficha["pericias"][pericia_oficio]["outros_bonus"] + st.session_state.ficha["pericias"][pericia_oficio]["penalidade"]
+                    
+                    # Criar container para o ofício
+                    st.markdown(f"""
+                        <div class="pericia-container">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div class="pericia-nome">{pericia_oficio}</div>
+                                    <div class="pericia-atributo">Atributo: {st.session_state.ficha["pericias"][pericia_oficio]["atributo"].capitalize()}</div>
+                                </div>
+                                <div class="pericia-bonus">{bonus_total:+d}</div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Controles do ofício
+                    st.markdown('<div class="pericia-controls">', unsafe_allow_html=True)
+                    col_controls1, col_controls2, col_controls3, col_controls4, col_controls5 = st.columns([1, 1, 1, 1, 1])
+                    with col_controls1:
+                        st.checkbox(
+                            "Treinada",
+                            value=st.session_state.ficha["pericias"][pericia_oficio]["treinada"],
+                            key=f"pericia_{pericia_oficio}",
+                            on_change=atualizar_pericia_treinada,
+                            args=(pericia_oficio,)
+                        )
+                    with col_controls2:
+                        st.selectbox(
+                            "Atributo",
+                            options=ATRIBUTOS,
+                            index=ATRIBUTOS.index(st.session_state.ficha["pericias"][pericia_oficio]["atributo"]),
+                            key=f"atributo_{pericia_oficio}",
+                            label_visibility="collapsed",
+                            on_change=atualizar_atributo_pericia,
+                            args=(pericia_oficio,)
+                        )
+                    with col_controls3:
+                        st.number_input(
+                            "Outros Bônus",
+                            -10, 10,
+                            st.session_state.ficha["pericias"][pericia_oficio]["outros_bonus"],
+                            key=f"outros_bonus_{pericia_oficio}",
+                            label_visibility="collapsed",
+                            on_change=atualizar_outros_bonus_pericia,
+                            args=(pericia_oficio,)
+                        )
+                    with col_controls4:
+                        st.number_input(
+                            "Penalidade",
+                            -10, 10,
+                            st.session_state.ficha["pericias"][pericia_oficio]["penalidade"],
+                            key=f"penalidade_{pericia_oficio}",
+                            label_visibility="collapsed",
+                            on_change=atualizar_penalidade_pericia,
+                            args=(pericia_oficio,)
+                        )
+                    with col_controls5:
+                        if st.button("Remover", key=f"remover_oficio_{oficio}"):
+                            st.session_state.ficha["oficios"].remove(oficio)
+                            del st.session_state.ficha["pericias"][pericia_oficio]
+                            st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Campo para adicionar novo ofício
+                col_novo_oficio1, col_novo_oficio2 = st.columns([3, 1])
+                with col_novo_oficio1:
+                    st.text_input(
+                        "Novo Ofício",
+                        value=st.session_state.novo_oficio,
+                        key="novo_oficio",
+                        placeholder="Digite o nome do ofício"
+                    )
+                with col_novo_oficio2:
+                    st.button("Adicionar Ofício", on_click=adicionar_oficio)
+                
+                continue  # Pular a exibição padrão do Ofício
+            
+            # Exibição padrão para outras perícias
+            # Garantir que outros_bonus e penalidade existem
             if "outros_bonus" not in st.session_state.ficha["pericias"][pericia]:
                 st.session_state.ficha["pericias"][pericia]["outros_bonus"] = 0
+            if "penalidade" not in st.session_state.ficha["pericias"][pericia]:
+                st.session_state.ficha["pericias"][pericia]["penalidade"] = 0
+            
+            # Calcular bônus total incluindo penalidades
+            atributo = st.session_state.ficha["atributos"][st.session_state.ficha["pericias"][pericia]["atributo"]]
+            treinada = st.session_state.ficha["pericias"][pericia]["treinada"]
+            bonus = calcular_bonus_pericia(atributo, treinada, st.session_state.ficha["nivel"])
+            bonus_total = bonus + st.session_state.ficha["pericias"][pericia]["outros_bonus"] + st.session_state.ficha["pericias"][pericia]["penalidade"]
             
             # Criar container para a perícia
             st.markdown(f"""
@@ -633,14 +835,14 @@ for col, pericias_col in zip(columns, pericias_colunas):
                             <div class="pericia-nome">{pericia}</div>
                             <div class="pericia-atributo">Atributo: {st.session_state.ficha["pericias"][pericia]["atributo"].capitalize()}</div>
                         </div>
-                        <div class="pericia-bonus">{st.session_state.ficha["pericias"][pericia]["bonus"]:+d}</div>
+                        <div class="pericia-bonus">{bonus_total:+d}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
             
             # Controles da perícia
             st.markdown('<div class="pericia-controls">', unsafe_allow_html=True)
-            col_controls1, col_controls2, col_controls3 = st.columns([1, 1, 1])
+            col_controls1, col_controls2, col_controls3, col_controls4 = st.columns([1, 1, 1, 1])
             with col_controls1:
                 st.checkbox(
                     "Treinada",
@@ -667,6 +869,16 @@ for col, pericias_col in zip(columns, pericias_colunas):
                     key=f"outros_bonus_{pericia}",
                     label_visibility="collapsed",
                     on_change=atualizar_outros_bonus_pericia,
+                    args=(pericia,)
+                )
+            with col_controls4:
+                st.number_input(
+                    "Penalidade",
+                    -10, 10,
+                    st.session_state.ficha["pericias"][pericia]["penalidade"],
+                    key=f"penalidade_{pericia}",
+                    label_visibility="collapsed",
+                    on_change=atualizar_penalidade_pericia,
                     args=(pericia,)
                 )
             st.markdown('</div>', unsafe_allow_html=True)
@@ -753,25 +965,25 @@ with col_din5:
 
 # Carga
 st.write("Carga")
-col_carga1, col_carga2 = st.columns(2)
+col_carga1, col_carga2, col_carga3 = st.columns(3)
 with col_carga1:
-    st.session_state.ficha["inventario"]["carga"]["atual"] = st.number_input(
-        "Carga Atual",
-        min_value=0.0,
-        max_value=1000.0,
-        value=float(st.session_state.ficha["inventario"]["carga"]["atual"]),
-        step=0.1,
-        key="carga_atual"
-    )
+    carga_maxima = calcular_carga_maxima(st.session_state.ficha["atributos"]["forca"])
+    st.session_state.ficha["inventario"]["carga"]["maxima"] = carga_maxima
+    st.metric("Carga Máxima", f"{st.session_state.ficha['inventario']['carga']['atual']:.1f}/{carga_maxima:.1f}")
+
 with col_carga2:
-    st.session_state.ficha["inventario"]["carga"]["maxima"] = st.number_input(
-        "Carga Máxima",
-        min_value=0.0,
-        max_value=1000.0,
-        value=float(st.session_state.ficha["inventario"]["carga"]["maxima"]),
-        step=0.1,
-        key="carga_maxima"
+    # Calcular e exibir penalidade de carga
+    penalidade, descricao = calcular_penalidade_carga(
+        st.session_state.ficha["inventario"]["carga"]["atual"],
+        carga_maxima
     )
+    st.metric("Penalidade de Carga", f"{penalidade:+d}")
+    st.write(descricao)
+
+with col_carga3:
+    # Exibir porcentagem de carga
+    porcentagem = (st.session_state.ficha["inventario"]["carga"]["atual"] / carga_maxima) * 100
+    st.metric("Porcentagem de Carga", f"{porcentagem:.1f}%")
 
 # Itens
 st.write("Itens")
@@ -818,6 +1030,11 @@ for i, item in enumerate(st.session_state.ficha["inventario"]["itens"]):
             item["quantidade"] = st.number_input("Quantidade", 1, 1000, item["quantidade"], key=f"item_qtd_{i}")
             item["peso"] = st.number_input("Peso", min_value=0.0, max_value=1000.0, value=float(item["peso"]), step=0.1, key=f"item_peso_{i}")
             item["valor"] = st.number_input("Valor", 0, 1000000, item["valor"], key=f"item_valor_{i}")
+        
+        # Atualizar carga total quando o item é modificado
+        if st.button("Atualizar", key=f"atualizar_item_{i}"):
+            atualizar_item(i)
+            st.rerun()
         
         # Descrições detalhadas
         st.write("Descrições")
@@ -897,57 +1114,94 @@ for i, item in enumerate(st.session_state.ficha["inventario"]["itens"]):
         
         if st.button("Remover Item", key=f"remover_item_{i}"):
             st.session_state.ficha["inventario"]["itens"].pop(i)
+            atualizar_carga_total()
             st.rerun()
+
+# Atualizar carga total inicial
+atualizar_carga_total()
 
 # Magias
 st.subheader("Magias")
 
-# Seleção de tipo de magia
-tipo_magia = st.radio("Tipo de Magia", ["Arcana", "Divina"])
+# Barra de pesquisa para magias
+pesquisa_magia = st.text_input("🔍 Pesquisar Magia", key="pesquisa_magia")
 
-# Exibir magias por nível
-for nivel in MAGIAS[tipo_magia]:
-    st.write(f"### Magias de {nivel}º Nível")
+# Função para adicionar nova magia
+def adicionar_magia():
+    nova_magia = {
+        "nome": "",
+        "tipo": "Arcana",  # Tipo padrão
+        "nivel": 1,        # Nível padrão
+        "escola": "",
+        "execucao": "",
+        "alcance": "",
+        "alvo": "",
+        "duracao": "",
+        "resistencia": "",
+        "descricao": ""
+    }
+    st.session_state.ficha["magias"][nova_magia["tipo"].lower()].append(nova_magia)
+
+# Botão para adicionar nova magia
+if st.button("Adicionar Nova Magia"):
+    adicionar_magia()
+
+# Agrupar magias por nível
+def agrupar_magias_por_nivel(magias):
+    niveis = {}
+    for magia in magias:
+        nivel = magia["nivel"]
+        if nivel not in niveis:
+            niveis[nivel] = []
+        niveis[nivel].append(magia)
+    return dict(sorted(niveis.items()))
+
+# Exibir magias por tipo e nível
+for tipo in ["Arcana", "Divina"]:
+    # Filtrar magias do tipo atual
+    magias_tipo = [
+        magia for magia in st.session_state.ficha["magias"][tipo.lower()]
+        if pesquisa_magia.lower() in magia["nome"].lower() or pesquisa_magia.lower() in magia["descricao"].lower()
+    ]
     
-    # Botão para adicionar nova magia
-    if st.button(f"Adicionar Magia de {nivel}º Nível", key=f"add_magia_{nivel}"):
-        st.session_state.ficha["magias"][tipo_magia.lower()][nivel].append({
-            "nome": "",
-            "escola": "",
-            "nivel": nivel,
-            "execucao": "",
-            "alcance": "",
-            "alvo": "",
-            "duracao": "",
-            "resistencia": "",
-            "descricao": ""
-        })
-    
-    # Lista de magias do nível
-    for i, magia in enumerate(st.session_state.ficha["magias"][tipo_magia.lower()][nivel]):
-        st.write(f"#### {magia['nome'] or 'Nova Magia'}")
+    if magias_tipo:  # Só mostra a seção se houver magias do tipo
+        st.write(f"### {tipo}")
         
-        col_magia1, col_magia2 = st.columns(2)
-        with col_magia1:
-            magia["nome"] = st.text_input("Nome", magia["nome"], key=f"magia_nome_{nivel}_{i}")
-            magia["escola"] = st.text_input("Escola", magia["escola"], key=f"magia_escola_{nivel}_{i}")
-            magia["execucao"] = st.text_input("Execução", magia["execucao"], key=f"magia_exec_{nivel}_{i}")
-            magia["alcance"] = st.text_input("Alcance", magia["alcance"], key=f"magia_alcance_{nivel}_{i}")
-        with col_magia2:
-            magia["alvo"] = st.text_input("Alvo", magia["alvo"], key=f"magia_alvo_{nivel}_{i}")
-            magia["duracao"] = st.text_input("Duração", magia["duracao"], key=f"magia_duracao_{nivel}_{i}")
-            magia["resistencia"] = st.text_input("Resistência", magia["resistencia"], key=f"magia_resist_{nivel}_{i}")
+        # Agrupar magias por nível
+        magias_por_nivel = agrupar_magias_por_nivel(magias_tipo)
         
-        magia["descricao"] = st.text_area("Descrição", magia["descricao"], height=100, key=f"magia_desc_{nivel}_{i}")
-        
-        if st.button("Remover Magia", key=f"remover_magia_{nivel}_{i}"):
-            st.session_state.ficha["magias"][tipo_magia.lower()][nivel].pop(i)
-            st.rerun()
-        
-        st.markdown("---")  # Separador entre magias
+        # Exibir magias por nível
+        for nivel, magias in magias_por_nivel.items():
+            with st.expander(f"Magias de {nivel}º Nível", expanded=True):
+                for i, magia in enumerate(magias):
+                    st.write(f"#### {magia['nome'] or 'Nova Magia'}")
+                    
+                    col_magia1, col_magia2 = st.columns(2)
+                    with col_magia1:
+                        magia["nome"] = st.text_input("Nome", magia["nome"], key=f"magia_nome_{tipo}_{nivel}_{i}")
+                        magia["tipo"] = st.selectbox("Tipo", ["Arcana", "Divina"], index=0 if magia["tipo"] == "Arcana" else 1, key=f"magia_tipo_{tipo}_{nivel}_{i}")
+                        magia["nivel"] = st.number_input("Nível", 1, None, magia["nivel"], key=f"magia_nivel_{tipo}_{nivel}_{i}")
+                        magia["escola"] = st.text_input("Escola", magia["escola"], key=f"magia_escola_{tipo}_{nivel}_{i}")
+                        magia["execucao"] = st.text_input("Execução", magia["execucao"], key=f"magia_exec_{tipo}_{nivel}_{i}")
+                        magia["alcance"] = st.text_input("Alcance", magia["alcance"], key=f"magia_alcance_{tipo}_{nivel}_{i}")
+                    with col_magia2:
+                        magia["alvo"] = st.text_input("Alvo", magia["alvo"], key=f"magia_alvo_{tipo}_{nivel}_{i}")
+                        magia["duracao"] = st.text_input("Duração", magia["duracao"], key=f"magia_duracao_{tipo}_{nivel}_{i}")
+                        magia["resistencia"] = st.text_input("Resistência", magia["resistencia"], key=f"magia_resist_{tipo}_{nivel}_{i}")
+                    
+                    magia["descricao"] = st.text_area("Descrição", magia["descricao"], height=100, key=f"magia_desc_{tipo}_{nivel}_{i}")
+                    
+                    if st.button("Remover Magia", key=f"remover_magia_{tipo}_{nivel}_{i}"):
+                        st.session_state.ficha["magias"][tipo.lower()].remove(magia)
+                        st.rerun()
+                    
+                    st.markdown("---")  # Separador entre magias
 
 # Poderes
 st.subheader("Poderes")
+
+# Barra de pesquisa para poderes
+pesquisa_poder = st.text_input("🔍 Pesquisar Poder", key="pesquisa_poder")
 
 if st.button("Adicionar Poder"):
     st.session_state.ficha["poderes"].append({
@@ -958,27 +1212,33 @@ if st.button("Adicionar Poder"):
         "descricao": ""
     })
 
-for i, poder in enumerate(st.session_state.ficha["poderes"]):
-    st.write(f"#### {poder['nome'] or 'Novo Poder'}")
-    
-    col_poder1, col_poder2 = st.columns(2)
-    with col_poder1:
-        poder["nome"] = st.text_input("Nome", poder["nome"], key=f"poder_nome_{i}")
-        poder["tipo"] = st.text_input("Tipo", poder["tipo"], key=f"poder_tipo_{i}")
-    with col_poder2:
-        poder["custo"] = st.text_input("Custo", poder["custo"], key=f"poder_custo_{i}")
-        poder["requisito"] = st.text_input("Requisito", poder["requisito"], key=f"poder_req_{i}")
-    
-    poder["descricao"] = st.text_area("Descrição", poder["descricao"], height=100, key=f"poder_desc_{i}")
-    
-    if st.button("Remover Poder", key=f"remover_poder_{i}"):
-        st.session_state.ficha["poderes"].pop(i)
-        st.rerun()
-    
-    st.markdown("---")  # Separador entre poderes
+# Filtrar poderes
+poderes_filtrados = [
+    poder for poder in st.session_state.ficha["poderes"]
+    if pesquisa_poder.lower() in poder["nome"].lower() or pesquisa_poder.lower() in poder["descricao"].lower()
+]
+
+for i, poder in enumerate(poderes_filtrados):
+    with st.expander(f"{poder['nome'] or 'Novo Poder'}", expanded=True):
+        col_poder1, col_poder2 = st.columns(2)
+        with col_poder1:
+            poder["nome"] = st.text_input("Nome", poder["nome"], key=f"poder_nome_{i}")
+            poder["tipo"] = st.text_input("Tipo", poder["tipo"], key=f"poder_tipo_{i}")
+        with col_poder2:
+            poder["custo"] = st.text_input("Custo", poder["custo"], key=f"poder_custo_{i}")
+            poder["requisito"] = st.text_input("Requisito", poder["requisito"], key=f"poder_req_{i}")
+        
+        poder["descricao"] = st.text_area("Descrição", poder["descricao"], height=100, key=f"poder_desc_{i}")
+        
+        if st.button("Remover Poder", key=f"remover_poder_{i}"):
+            st.session_state.ficha["poderes"].pop(i)
+            st.rerun()
 
 # Habilidades
 st.subheader("Habilidades")
+
+# Barra de pesquisa para habilidades
+pesquisa_habilidade = st.text_input("🔍 Pesquisar Habilidade", key="pesquisa_habilidade")
 
 if st.button("Adicionar Habilidade"):
     st.session_state.ficha["habilidades"].append({
@@ -989,24 +1249,27 @@ if st.button("Adicionar Habilidade"):
         "descricao": ""
     })
 
-for i, habilidade in enumerate(st.session_state.ficha["habilidades"]):
-    st.write(f"#### {habilidade['nome'] or 'Nova Habilidade'}")
-    
-    col_hab1, col_hab2 = st.columns(2)
-    with col_hab1:
-        habilidade["nome"] = st.text_input("Nome", habilidade["nome"], key=f"hab_nome_{i}")
-        habilidade["tipo"] = st.text_input("Tipo", habilidade["tipo"], key=f"hab_tipo_{i}")
-    with col_hab2:
-        habilidade["custo"] = st.text_input("Custo", habilidade["custo"], key=f"hab_custo_{i}")
-        habilidade["requisito"] = st.text_input("Requisito", habilidade["requisito"], key=f"hab_req_{i}")
-    
-    habilidade["descricao"] = st.text_area("Descrição", habilidade["descricao"], height=100, key=f"hab_desc_{i}")
-    
-    if st.button("Remover Habilidade", key=f"remover_hab_{i}"):
-        st.session_state.ficha["habilidades"].pop(i)
-        st.rerun()
-    
-    st.markdown("---")  # Separador entre habilidades
+# Filtrar habilidades
+habilidades_filtradas = [
+    habilidade for habilidade in st.session_state.ficha["habilidades"]
+    if pesquisa_habilidade.lower() in habilidade["nome"].lower() or pesquisa_habilidade.lower() in habilidade["descricao"].lower()
+]
+
+for i, habilidade in enumerate(habilidades_filtradas):
+    with st.expander(f"{habilidade['nome'] or 'Nova Habilidade'}", expanded=True):
+        col_hab1, col_hab2 = st.columns(2)
+        with col_hab1:
+            habilidade["nome"] = st.text_input("Nome", habilidade["nome"], key=f"hab_nome_{i}")
+            habilidade["tipo"] = st.text_input("Tipo", habilidade["tipo"], key=f"hab_tipo_{i}")
+        with col_hab2:
+            habilidade["custo"] = st.text_input("Custo", habilidade["custo"], key=f"hab_custo_{i}")
+            habilidade["requisito"] = st.text_input("Requisito", habilidade["requisito"], key=f"hab_req_{i}")
+        
+        habilidade["descricao"] = st.text_area("Descrição", habilidade["descricao"], height=100, key=f"hab_desc_{i}")
+        
+        if st.button("Remover Habilidade", key=f"remover_hab_{i}"):
+            st.session_state.ficha["habilidades"].pop(i)
+            st.rerun()
 
 # Botão para salvar ficha
 if st.button("Salvar Ficha"):
