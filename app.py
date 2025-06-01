@@ -1140,7 +1140,17 @@ def adicionar_magia():
         "resistencia": "",
         "descricao": ""
     }
-    st.session_state.ficha["magias"][nova_magia["tipo"].lower()].append(nova_magia)
+    
+    # Verificar se as magias estão organizadas por nível
+    if isinstance(st.session_state.ficha["magias"][nova_magia["tipo"].lower()], dict):
+        # Se for um dicionário, adicionar ao nível apropriado
+        nivel_key = f"{nova_magia['nivel']}º"
+        if nivel_key not in st.session_state.ficha["magias"][nova_magia["tipo"].lower()]:
+            st.session_state.ficha["magias"][nova_magia["tipo"].lower()][nivel_key] = []
+        st.session_state.ficha["magias"][nova_magia["tipo"].lower()][nivel_key].append(nova_magia)
+    else:
+        # Se for uma lista, adicionar diretamente
+        st.session_state.ficha["magias"][nova_magia["tipo"].lower()].append(nova_magia)
 
 # Botão para adicionar nova magia
 if st.button("Adicionar Nova Magia"):
@@ -1159,9 +1169,22 @@ def agrupar_magias_por_nivel(magias):
 # Exibir magias por tipo e nível
 for tipo in ["Arcana", "Divina"]:
     # Filtrar magias do tipo atual
+    magias_tipo = []
+    
+    # Verificar se as magias estão organizadas por nível
+    if isinstance(st.session_state.ficha["magias"][tipo.lower()], dict):
+        # Se for um dicionário, coletar todas as magias de todos os níveis
+        for nivel_magias in st.session_state.ficha["magias"][tipo.lower()].values():
+            if isinstance(nivel_magias, list):
+                magias_tipo.extend(nivel_magias)
+    else:
+        # Se for uma lista, usar diretamente
+        magias_tipo = st.session_state.ficha["magias"][tipo.lower()]
+    
+    # Filtrar magias baseado na pesquisa
     magias_tipo = [
-        magia for magia in st.session_state.ficha["magias"][tipo.lower()]
-        if pesquisa_magia.lower() in magia["nome"].lower() or pesquisa_magia.lower() in magia["descricao"].lower()
+        magia for magia in magias_tipo
+        if pesquisa_magia.lower() in magia.get("nome", "").lower() or pesquisa_magia.lower() in magia.get("descricao", "").lower()
     ]
     
     if magias_tipo:  # Só mostra a seção se houver magias do tipo
@@ -1174,25 +1197,32 @@ for tipo in ["Arcana", "Divina"]:
         for nivel, magias in magias_por_nivel.items():
             with st.expander(f"Magias de {nivel}º Nível", expanded=True):
                 for i, magia in enumerate(magias):
-                    st.write(f"#### {magia['nome'] or 'Nova Magia'}")
+                    st.write(f"#### {magia.get('nome', 'Nova Magia')}")
                     
                     col_magia1, col_magia2 = st.columns(2)
                     with col_magia1:
-                        magia["nome"] = st.text_input("Nome", magia["nome"], key=f"magia_nome_{tipo}_{nivel}_{i}")
-                        magia["tipo"] = st.selectbox("Tipo", ["Arcana", "Divina"], index=0 if magia["tipo"] == "Arcana" else 1, key=f"magia_tipo_{tipo}_{nivel}_{i}")
-                        magia["nivel"] = st.number_input("Nível", 1, None, magia["nivel"], key=f"magia_nivel_{tipo}_{nivel}_{i}")
-                        magia["escola"] = st.text_input("Escola", magia["escola"], key=f"magia_escola_{tipo}_{nivel}_{i}")
-                        magia["execucao"] = st.text_input("Execução", magia["execucao"], key=f"magia_exec_{tipo}_{nivel}_{i}")
-                        magia["alcance"] = st.text_input("Alcance", magia["alcance"], key=f"magia_alcance_{tipo}_{nivel}_{i}")
+                        magia["nome"] = st.text_input("Nome", magia.get("nome", ""), key=f"magia_nome_{tipo}_{nivel}_{i}")
+                        magia["tipo"] = st.selectbox("Tipo", ["Arcana", "Divina"], index=0 if magia.get("tipo", "Arcana") == "Arcana" else 1, key=f"magia_tipo_{tipo}_{nivel}_{i}")
+                        magia["nivel"] = st.number_input("Nível", 1, None, magia.get("nivel", 1), key=f"magia_nivel_{tipo}_{nivel}_{i}")
+                        magia["escola"] = st.text_input("Escola", magia.get("escola", ""), key=f"magia_escola_{tipo}_{nivel}_{i}")
+                        magia["execucao"] = st.text_input("Execução", magia.get("execucao", ""), key=f"magia_exec_{tipo}_{nivel}_{i}")
+                        magia["alcance"] = st.text_input("Alcance", magia.get("alcance", ""), key=f"magia_alcance_{tipo}_{nivel}_{i}")
                     with col_magia2:
-                        magia["alvo"] = st.text_input("Alvo", magia["alvo"], key=f"magia_alvo_{tipo}_{nivel}_{i}")
-                        magia["duracao"] = st.text_input("Duração", magia["duracao"], key=f"magia_duracao_{tipo}_{nivel}_{i}")
-                        magia["resistencia"] = st.text_input("Resistência", magia["resistencia"], key=f"magia_resist_{tipo}_{nivel}_{i}")
+                        magia["alvo"] = st.text_input("Alvo", magia.get("alvo", ""), key=f"magia_alvo_{tipo}_{nivel}_{i}")
+                        magia["duracao"] = st.text_input("Duração", magia.get("duracao", ""), key=f"magia_duracao_{tipo}_{nivel}_{i}")
+                        magia["resistencia"] = st.text_input("Resistência", magia.get("resistencia", ""), key=f"magia_resist_{tipo}_{nivel}_{i}")
                     
-                    magia["descricao"] = st.text_area("Descrição", magia["descricao"], height=100, key=f"magia_desc_{tipo}_{nivel}_{i}")
+                    magia["descricao"] = st.text_area("Descrição", magia.get("descricao", ""), height=100, key=f"magia_desc_{tipo}_{nivel}_{i}")
                     
                     if st.button("Remover Magia", key=f"remover_magia_{tipo}_{nivel}_{i}"):
-                        st.session_state.ficha["magias"][tipo.lower()].remove(magia)
+                        # Encontrar e remover a magia da estrutura correta
+                        if isinstance(st.session_state.ficha["magias"][tipo.lower()], dict):
+                            for nivel_key in st.session_state.ficha["magias"][tipo.lower()]:
+                                if magia in st.session_state.ficha["magias"][tipo.lower()][nivel_key]:
+                                    st.session_state.ficha["magias"][tipo.lower()][nivel_key].remove(magia)
+                                    break
+                        else:
+                            st.session_state.ficha["magias"][tipo.lower()].remove(magia)
                         st.rerun()
                     
                     st.markdown("---")  # Separador entre magias
