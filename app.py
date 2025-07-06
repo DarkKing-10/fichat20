@@ -101,7 +101,6 @@ PERICIAS = {
     "Luta": {"atributo_padrao": "forca", "penalidade_armadura": True},
     "Misticismo": {"atributo_padrao": "inteligencia", "penalidade_armadura": False},
     "Nobreza": {"atributo_padrao": "inteligencia", "penalidade_armadura": False},
-    "Ofício": {"atributo_padrao": "inteligencia", "penalidade_armadura": False},
     "Percepção": {"atributo_padrao": "sabedoria", "penalidade_armadura": False},
     "Pilotagem": {"atributo_padrao": "destreza", "penalidade_armadura": True},
     "Pontaria": {"atributo_padrao": "destreza", "penalidade_armadura": True},
