@@ -12,6 +12,69 @@ st.set_page_config(
     layout="wide"
 )
 
+def exibir_magias(ficha):
+    st.subheader("✨ Magias")
+
+    if not ficha.get("magias"):
+        st.info("Este personagem não possui magias cadastradas.")
+        return
+
+    abas = st.tabs(["Magia Arcana", "Magia Divina"])
+
+    for idx, tipo in enumerate(["arcana", "divina"]):
+        with abas[idx]:
+            st.write(f"Magias do tipo **{tipo.capitalize()}**:")
+
+            for nivel, magias in ficha["magias"].get(tipo, {}).items():
+                with st.expander(f"Nível {nivel} ({len(magias)} magia(s))"):
+                    for i, magia in enumerate(magias):
+                        st.markdown(f"""
+                        <div style='border:1px solid #444;padding:10px;border-radius:8px;margin-bottom:10px'>
+                        <strong>{magia.get('nome', 'Sem nome')}</strong><br>
+                        <em>Escola:</em> {magia.get('escola', '---')}<br>
+                        <em>Nível:</em> {magia.get('nivel', '---')}<br>
+                        <em>Execução:</em> {magia.get('execucao', '---')}<br>
+                        <em>Alcance:</em> {magia.get('alcance', '---')}<br>
+                        <em>Alvo:</em> {magia.get('alvo', '---')}<br>
+                        <em>Duração:</em> {magia.get('duracao', '---')}<br>
+                        <em>Resistência:</em> {magia.get('resistencia', '---')}<br>
+                        <em>Descrição:</em><br>
+                        <pre style='white-space:pre-wrap'>{magia.get('descricao', '')}</pre>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        if st.button("Remover", key=f"remover_{tipo}_{nivel}_{i}"):
+                            ficha["magias"][tipo][nivel].pop(i)
+                            st.experimental_rerun()
+
+            st.markdown("---")
+            with st.expander(f"Adicionar magia ao tipo {tipo.capitalize()}"):
+                nivel_magia = st.selectbox("Nível da magia", list(ficha["magias"][tipo].keys()), key=f"select_nivel_{tipo}")
+                nome = st.text_input("Nome da magia", key=f"nome_magia_{tipo}")
+                escola = st.text_input("Escola", key=f"escola_magia_{tipo}")
+                nivel_info = st.text_input("Nível", key=f"nivel_info_magia_{tipo}")
+                execucao = st.text_input("Execução", key=f"execucao_magia_{tipo}")
+                alcance = st.text_input("Alcance", key=f"alcance_magia_{tipo}")
+                alvo = st.text_input("Alvo", key=f"alvo_magia_{tipo}")
+                duracao = st.text_input("Duração", key=f"duracao_magia_{tipo}")
+                resistencia = st.text_input("Resistência", key=f"resistencia_magia_{tipo}")
+                descricao = st.text_area("Descrição da magia", key=f"descricao_magia_{tipo}")
+
+                if st.button("Adicionar Magia", key=f"adicionar_magia_{tipo}"):
+                    nova_magia = {
+                        "nome": nome,
+                        "escola": escola,
+                        "nivel": nivel_info,
+                        "execucao": execucao,
+                        "alcance": alcance,
+                        "alvo": alvo,
+                        "duracao": duracao,
+                        "resistencia": resistencia,
+                        "descricao": descricao
+                    }
+                    ficha["magias"][tipo][nivel_magia].append(nova_magia)
+                    st.success(f"Magia '{nome}' adicionada ao nível {nivel_magia} ({tipo.capitalize()}).")
+                    st.experimental_rerun()
 # Função para converter imagem para base64
 def image_to_base64(image):
     try:
@@ -101,6 +164,7 @@ PERICIAS = {
     "Luta": {"atributo_padrao": "forca", "penalidade_armadura": True},
     "Misticismo": {"atributo_padrao": "inteligencia", "penalidade_armadura": False},
     "Nobreza": {"atributo_padrao": "inteligencia", "penalidade_armadura": False},
+    "Ofício": {"atributo_padrao": "inteligencia", "penalidade_armadura": False},
     "Percepção": {"atributo_padrao": "sabedoria", "penalidade_armadura": False},
     "Pilotagem": {"atributo_padrao": "destreza", "penalidade_armadura": True},
     "Pontaria": {"atributo_padrao": "destreza", "penalidade_armadura": True},
@@ -729,7 +793,7 @@ for i, habilidade in enumerate(st.session_state.ficha["habilidades"]):
         if st.button("Remover Habilidade", key=f"remove_habilidade_{i}"):
             st.session_state.ficha["habilidades"].pop(i)
             st.rerun()
-
+exibir_magias(st.session_state.ficha)
 # Footer
 st.markdown("---")
 st.markdown("**Ficha T20** - Criada com Streamlit 🎲")
